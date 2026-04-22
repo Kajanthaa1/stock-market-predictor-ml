@@ -13,17 +13,22 @@ class StockPredictor:
         self.lstm_model = None
         self.scaler = MinMaxScaler(feature_range=(0,1))
         
-    def train_linear_regression(self, df):
+    def train_linear_regression(self, df, horizon=1):
         """
-        Trains a simple Linear Regression model to predict 'Close' price based on 'Prev_Close', 'MA_5', 'MA_10'.
+        Trains a simple Linear Regression model to predict future 'Close' price.
         """
+        
         # Ensure required columns are present
         features = ['Prev_Close', 'MA_5', 'MA_10']
         if not all(col in df.columns for col in features):
             raise ValueError("Dataframe must contain 'Prev_Close', 'MA_5', and 'MA_10'")
-            
+        
+        df = df.copy()
+        df['Target'] = df['Close'].shift(-horizon)
+        df = df.dropna(subset=['Target'] + features)
+        
         X = df[features]
-        y = df['Close']
+        y = df['Target']
         
         # Simple train-test split (80-20)
         split = int(len(df) * 0.8)
@@ -34,7 +39,6 @@ class StockPredictor:
         
         # Calculate accuracy/confidence score (R^2 roughly)
         score = self.lr_model.score(X_test, y_test)
-        
         return score
         
     def predict_lr(self, current_features):
@@ -43,8 +47,8 @@ class StockPredictor:
         current_features should be a DataFrame with ['Prev_Close', 'MA_5', 'MA_10'] for the latest day
         """
         return self.lr_model.predict(current_features)[0]
-
-    def prepare_lstm_data(self, df, look_back=60):
+        
+    def prepare_lstm_data(self, df, look_back=60, horizon=1):
         """
         Prepares data for LSTM model (Time Series).
         """
@@ -52,25 +56,25 @@ class StockPredictor:
         scaled_data = self.scaler.fit_transform(data)
         
         X, y = [], []
-        for i in range(look_back, len(scaled_data)):
+        for i in range(look_back, len(scaled_data) - horizon + 1):
             X.append(scaled_data[i-look_back:i, 0])
-            y.append(scaled_data[i, 0])
-            
+            y.append(scaled_data[i + horizon - 1, 0])
+           
         X, y = np.array(X), np.array(y)
         if len(X) > 0:
             X = np.reshape(X, (X.shape[0], X.shape[1], 1))
         return X, y, scaled_data
 
-    def train_lstm(self, df, epochs=3, batch_size=32):
+    def train_lstm(self, df, epochs=3, batch_size=32, horizon=1):
         """
         Builds and trains an LSTM model.
         """
         look_back = 60
-        X, y, scaled_data = self.prepare_lstm_data(df, look_back)
+        X, y, scaled_data = self.prepare_lstm_data(df, look_back, horizon)
         
         if len(X) == 0:
             return 0.0 # Not enough data
-            
+         
         # Split data
         split = int(len(X) * 0.8)
         if split == 0:
@@ -108,7 +112,7 @@ class StockPredictor:
         """
         if self.lstm_model is None:
             return None
-            
+           
         look_back = 60
         data = df.filter(['Close']).values
         if len(data) < look_back:
@@ -126,3 +130,4 @@ class StockPredictor:
         pred_price = self.scaler.inverse_transform(pred_price)
         
         return pred_price[0][0]
+        

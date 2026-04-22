@@ -18,8 +18,8 @@ def calculate_technical_indicators(df):
     
     df['SMA_50'] = sma_50.sma_indicator()
     df['SMA_200'] = sma_200.sma_indicator()
-    
     return df
+
 
 def determine_trend(df):
     """
@@ -35,7 +35,7 @@ def determine_trend(df):
         trend = "Bullish 🟢"
     elif latest['SMA_50'] < latest['SMA_200'] and latest['RSI'] < 50:
         trend = "Bearish 🔴"
-        
+       
     return trend
 
 def get_action_signal(current_price, predicted_price, trend, confidence):
@@ -45,21 +45,8 @@ def get_action_signal(current_price, predicted_price, trend, confidence):
     if pd.isna(predicted_price):
         return "HOLD", 0.0
         
-    price_diff = (predicted_price - current_price) / current_price * 100
-    
-    # Logic: If price is predicted to go up by at least 1% and trend is not completely bearish
+    # Logic: IF predicted_price > current_price AND trend == bullish: BUY ELSE: SELL
     if predicted_price > current_price and "Bullish" in trend:
-        if price_diff > 1.5:
-            return "STRONG BUY ⭐", min(confidence + 10, 99.9)
-        return "BUY 🟢", confidence
-        
-    elif predicted_price < current_price and "Bearish" in trend:
-        if price_diff < -1.5:
-            return "STRONG SELL 🚨", min(confidence + 10, 99.9)
-        return "SELL 🔴", confidence
-        
-    # Overbought/Oversold logic
-    if "Bullish" in trend and predicted_price < current_price:
-         return "HOLD ⚪ (Possible Pullback)", confidence * 0.8
-         
-    return "HOLD ⚪", confidence * 0.7
+        return "BUY", confidence
+    else:
+        return "SELL", confidence
